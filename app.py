@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import pickle
+import joblib  # <-- Ganti pickle jadi joblib
 import os
 from androguard.core.apk import APK
 
@@ -10,15 +10,15 @@ st.set_page_config(page_title="Deteksi Malware Android", page_icon="🛡️")
 st.title("🛡️ Deteksi Malware Android (TA)")
 st.write("Unggah file APK untuk mendeteksi apakah aplikasi tersebut Aman atau Malware.")
 
-# 1. Load Model dan Daftar Kolom Fitur
+# 1. Load Model dan Daftar Kolom Fitur pakai JOBLIB
 try:
-    with open("model_malware_rf.pkl", "rb") as file:
-        model = pickle.load(file)
-    with open("fitur_kolom.pkl", "rb") as file:
-        fitur_asli = pickle.load(file)
+    model = joblib.load("model_malware.joblib")
+    fitur_asli = joblib.load("fitur_kolom.joblib")
 except Exception as e:
     st.error(f"Gagal memuat model atau fitur: {e}")
     st.stop()
+
+# ... (kode ke bawahnya biarkan sama persis seperti sebelumnya) ...
 
 # 2. Area Upload File APK (Bukan CSV lagi)
 uploaded_file = st.file_uploader("Unggah File .apk", type=["apk"])
