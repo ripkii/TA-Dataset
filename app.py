@@ -1,54 +1,75 @@
 import streamlit as st
 import pandas as pd
-import joblib
+import pickle
+import os
+from androguard.core.apk import APK
 
-st.set_page_config(page_title="Deteksi Malware Android", page_icon="🛡️", layout="centered")
+# Konfigurasi Halaman Streamlit
+st.set_page_config(page_title="Deteksi Malware Android", page_icon="🛡️")
 
-st.markdown('''
-    <style>
-    .main {background-color: #f8fafc;}
-    .stButton>button {width: 100%; border-radius: 8px; background-color: #3b82f6; color: white;}
-    </style>
-''', unsafe_allow_html=True)
+st.title("🛡️ Deteksi Malware Android (TA)")
+st.write("Unggah file APK untuk mendeteksi apakah aplikasi tersebut Aman atau Malware.")
 
-st.title("🛡️ Sistem Deteksi Malware Android")
-st.write("Unggah file CSV hasil ekstraksi Androguard untuk mendeteksi apakah aplikasi tersebut Aman atau Malware.")
-
-@st.cache_resource
-def load_model():
-    model = joblib.load('model_malware_rf.pkl')
-    fitur_asli = joblib.load('fitur_kolom.pkl')
-    return model, fitur_asli
-
+# 1. Load Model dan Daftar Kolom Fitur
 try:
-    model, fitur_asli = load_model()
+    with open("rf_model_fixed.pkl", "rb") as file:
+        model = pickle.load(file)
+    with open("fitur_kolom.pkl", "rb") as file:
+        fitur_asli = pickle.load(file)
 except Exception as e:
-    st.warning("Menunggu Model AI. Pastikan file model_malware_rf.pkl dan fitur_kolom.pkl ada di folder yang sama dengan app.py!")
+    st.error(f"Gagal memuat model atau fitur: {e}")
     st.stop()
 
-uploaded_file = st.file_uploader("Upload File CSV Aplikasi Baru", type=["csv"])
+# 2. Area Upload File APK (Bukan CSV lagi)
+uploaded_file = st.file_uploader("Unggah File .apk", type=["apk"])
 
 if uploaded_file is not None:
-    df_upload = pd.read_csv(uploaded_file)
-    st.write("Preview Data:", df_upload.head())
+    st.success(f"File {uploaded_file.name} berhasil diunggah!")
     
     if st.button("🔍 Analisis Aplikasi"):
-        with st.spinner("Memproses deteksi malware..."):
+        with st.spinner("Membedah APK dan menganalisis permission..."):
+            try:
+                # Simpan sementara file APK yang diupload agar Androguard bisa membacanya
+                temp_apk_path = os.path.join("temp", uploaded_file.name)
+                os.makedirs("temp", exist_ok=True)
+                with open(temp_apk_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+
+                # 3. PROSES EKSTRAKSI (Androguard di dalam Web)
+                a = APK(temp_apk_path)
+                permissions_ditemukan = a.get_permissions()
+                
+                # 4. PENYELARASAN DATA
+                # Bikin DataFrame 1 baris berisi nilai 0 untuk ke-439 fitur
+                df_uji = pd.DataFrame(0, index=[0], columns=fitur_asli)
+                
+                # Ubah nilai menjadi 1 jika permission ditemukan di APK tersebut
+                for perm in permissions_ditemukan:
+                    if perm in fitur_asli:
+                        df_uji.at[0, perm] = 1
+
+                # 5. PREDIKSI MACHINE LEARNING
+                prediksi = model.predict(df_uji)
+                
+                # 6. TAMPILKAN HASIL
+                st.markdown("---")
+                if prediksi[0] == 1:
+                    st.error("🚨 **BAHAYA!** Aplikasi ini terdeteksi sebagai **MALWARE**.")
+                else:
+                    st.success("✅ **AMAN!** Aplikasi ini terdeteksi sebagai aplikasi **BENIGN**.")
+                
+                # Tampilkan rincian permission (Opsional, bagus buat pamer ke dosen)
+                with st.expander("Lihat Rincian Permission yang Ditemukan"):
+                    if permissions_ditemukan:
+                        for p in permissions_ditemukan:
+                            st.write(f"- {p}")
+                    else:
+                        st.write("Aplikasi ini tidak meminta permission apapun.")
+
+            except Exception as e:
+                st.error(f"Terjadi kesalahan saat menganalisis APK: {e}")
             
-            # 1. Bikin kerangka data 1 baris berisi angka 0 semua, dengan 439 kolom standar AI
-            df_uji = pd.DataFrame(0, index=[0], columns=fitur_asli)
-            
-            # 2. Cocokkan dan timpa nilai 0 dengan data dari CSV lu (jika permission-nya ada)
-            for col in df_upload.columns:
-                if col in fitur_asli:
-                    df_uji.at[0, col] = df_upload.at[0, col]
-            
-            # 3. Lakukan Prediksi
-            prediksi = model.predict(df_uji) 
-            
-            # 4. Tampilkan Hasil
-            st.markdown("---")
-            if prediksi[0] == 1:
-                st.error("🚨 **BAHAYA!** Aplikasi ini terdeteksi sebagai **MALWARE**.")
-            else:
-                st.success("✅ **AMAN!** Aplikasi ini terdeteksi sebagai aplikasi **BENIGN**.")
+            finally:
+                # Bersihkan file APK sementara setelah selesai dianalisis
+                if os.path.exists(temp_apk_path):
+                    os.remove(temp_apk_path)
