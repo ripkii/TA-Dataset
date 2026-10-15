@@ -35,16 +35,18 @@ if uploaded_file is not None:
     if st.button("🔍 Analisis Aplikasi"):
         with st.spinner("Memproses deteksi malware..."):
             
-            df_uji = pd.DataFrame(columns=fitur_asli)
-            for col in fitur_asli:
-                if col in df_upload.columns:
-                    df_uji[col] = df_upload[col]
-                else:
-                    df_uji[col] = 0
+            # 1. Bikin kerangka data 1 baris berisi angka 0 semua, dengan 439 kolom standar AI
+            df_uji = pd.DataFrame(0, index=[0], columns=fitur_asli)
             
-            df_uji = df_uji[fitur_asli] 
-            prediksi = model.predict(df_uji.head(1)) 
+            # 2. Cocokkan dan timpa nilai 0 dengan data dari CSV lu (jika permission-nya ada)
+            for col in df_upload.columns:
+                if col in fitur_asli:
+                    df_uji.at[0, col] = df_upload.at[0, col]
             
+            # 3. Lakukan Prediksi
+            prediksi = model.predict(df_uji) 
+            
+            # 4. Tampilkan Hasil
             st.markdown("---")
             if prediksi[0] == 1:
                 st.error("🚨 **BAHAYA!** Aplikasi ini terdeteksi sebagai **MALWARE**.")
