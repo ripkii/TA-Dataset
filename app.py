@@ -12,7 +12,7 @@ st.write("Unggah file APK untuk mendeteksi apakah aplikasi tersebut Aman atau Ma
 
 # 1. Load Model dan Daftar Kolom Fitur
 try:
-    with open("rf_model_fixed.pkl", "rb") as file:
+    with open("model_malware_rf.pkl", "rb") as file:
         model = pickle.load(file)
     with open("fitur_kolom.pkl", "rb") as file:
         fitur_asli = pickle.load(file)
